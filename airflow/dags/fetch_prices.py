@@ -45,10 +45,14 @@ def save(source, symbol, price, payload):
 def fetch_prices():
     @task
     def fetch_fx():
-        r = requests.get("https://open.er-api.com/v6/latest/USD", timeout=10)
+        r = requests.get(
+            "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json",
+            timeout=15,
+        )
         r.raise_for_status()
         data = r.json()
-        save("open_er_api", "USD/EGP", data["rates"]["EGP"], data)
+        egp = data["usd"]["egp"]
+        save("currency_api", "USD/EGP", egp, {"date": data["date"], "egp": egp})
 
     @task
     def fetch_crypto():
