@@ -20,23 +20,34 @@ DBT_FLAGS = (
     "--log-path /tmp/dbt_logs"
 )
 
+FX_URL = "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json"
+FX_CODES = ["egp", "eur", "gbp", "sar", "aed", "try", "jpy"]
+METAL_CODES = {"xau": "XAU/USD", "xag": "XAG/USD"}
+CRYPTO_IDS = {
+    "bitcoin": "BTC/USD",
+    "ethereum": "ETH/USD",
+    "solana": "SOL/USD",
+    "binancecoin": "BNB/USD",
+}
 
-def save(source, symbol, price, payload):
+
+def save_rows(rows):
     conn = psycopg2.connect(**DB)
     try:
         with conn, conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO raw.api_prices (source, symbol, price, price_date, payload)
-                VALUES (%s, %s, %s, CURRENT_DATE, %s)
-                ON CONFLICT (source, symbol, price_date)
-                DO UPDATE SET
-                    price = EXCLUDED.price,
-                    payload = EXCLUDED.payload,
-                    ingested_at = NOW()
-                """,
-                (source, symbol, price, Json(payload)),
-            )
+            for source, symbol, price, payload in rows:
+                cur.execute(
+                    """
+                    INSERT INTO raw.api_prices (source, symbol, price, price_date, payload)
+                    VALUES (%s, %s, %s, CURRENT_DATE, %s)
+                    ON CONFLICT (source, symbol, price_date)
+                    DO UPDATE SET
+                        price = EXCLUDED.price,
+                        payload = EXCLUDED.payload,
+                        ingested_at = NOW()
+                    """,
+                    (source, symbol, price, Json(payload)),
+                )
     finally:
         conn.close()
 
@@ -51,43 +62,43 @@ def save(source, symbol, price, payload):
 )
 def fetch_prices():
     @task
-    def fetch_fx():
-        r = requests.get(
-            "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json",
-            timeout=15,
-        )
+    def fetch_fx_and_metals():
+        r = requests.get(FX_URL, timeout=15)
         r.raise_for_status()
         data = r.json()
-        egp = data["usd"]["egp"]
-        save("currency_api", "USD/EGP", egp, {"date": data["date"], "egp": egp})
+        rates = data["usd"]
+        rows = []
+        for code in FX_CODES:
+            rows.append(
+                ("currency_api", f"USD/{code.upper()}", rates[code], {"date": data["date"], code: rates[code]})
+            )
+        for code, symbol in METAL_CODES.items():
+            per_usd = rates[code]
+            rows.append(
+                ("currency_api", symbol, 1 / per_usd, {"date": data["date"], code: per_usd})
+            )
+        save_rows(rows)
 
     @task
     def fetch_crypto():
         r = requests.get(
             "https://api.coingecko.com/api/v3/simple/price",
-            params={"ids": "bitcoin", "vs_currencies": "usd"},
-            timeout=10,
+            params={"ids": ",".join(CRYPTO_IDS), "vs_currencies": "usd"},
+            timeout=15,
         )
         r.raise_for_status()
         data = r.json()
-        save("coingecko", "BTC/USD", data["bitcoin"]["usd"], data)
+        rows = [
+            ("coingecko", symbol, data[coin_id]["usd"], {coin_id: data[coin_id]})
+            for coin_id, symbol in CRYPTO_IDS.items()
+        ]
+        save_rows(rows)
 
-    dbt_seed = BashOperator(
-        task_id="dbt_seed",
-        bash_command=f"dbt seed {DBT_FLAGS}",
-    )
+    dbt_seed = BashOperator(task_id="dbt_seed", bash_command=f"dbt seed {DBT_FLAGS}")
+    dbt_run = BashOperator(task_id="dbt_run", bash_command=f"dbt run {DBT_FLAGS}")
+    dbt_test = BashOperator(task_id="dbt_test", bash_command=f"dbt test {DBT_FLAGS}")
 
-    dbt_run = BashOperator(
-        task_id="dbt_run",
-        bash_command=f"dbt run {DBT_FLAGS}",
-    )
-
-    dbt_test = BashOperator(
-        task_id="dbt_test",
-        bash_command=f"dbt test {DBT_FLAGS}",
-    )
-
-    fx = fetch_fx()
+    fx = fetch_fx_and_metals()
     crypto = fetch_crypto()
     [fx, crypto] >> dbt_seed >> dbt_run >> dbt_test
 

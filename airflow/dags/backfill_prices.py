@@ -14,6 +14,14 @@ DB = dict(
 )
 
 DAYS = 90
+FX_CODES = ["egp", "eur", "gbp", "sar", "aed", "try", "jpy"]
+METAL_CODES = {"xau": "XAU/USD", "xag": "XAG/USD"}
+CRYPTO_IDS = {
+    "bitcoin": "BTC/USD",
+    "ethereum": "ETH/USD",
+    "solana": "SOL/USD",
+    "binancecoin": "BNB/USD",
+}
 
 UPSERT = """
     INSERT INTO raw.api_prices (source, symbol, price, price_date, payload)
@@ -46,20 +54,21 @@ def save_many(rows):
 def backfill_prices():
     @task
     def backfill_crypto():
-        r = requests.get(
-            "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart",
-            params={"vs_currency": "usd", "days": DAYS, "interval": "daily"},
-            timeout=30,
-        )
-        r.raise_for_status()
         rows = []
-        for ts_ms, price in r.json()["prices"]:
-            d = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc).date()
-            rows.append(("coingecko", "BTC/USD", price, d, Json({"timestamp_ms": ts_ms, "price": price})))
+        for coin_id, symbol in CRYPTO_IDS.items():
+            r = requests.get(
+                f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart",
+                params={"vs_currency": "usd", "days": DAYS, "interval": "daily"},
+                timeout=30,
+            )
+            r.raise_for_status()
+            for ts_ms, price in r.json()["prices"]:
+                d = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc).date()
+                rows.append(("coingecko", symbol, price, d, Json({"timestamp_ms": ts_ms, "price": price})))
         save_many(rows)
 
     @task
-    def backfill_fx():
+    def backfill_fx_and_metals():
         rows = []
         today = date.today()
         for i in range(DAYS):
@@ -70,11 +79,15 @@ def backfill_prices():
                 continue
             r.raise_for_status()
             data = r.json()
-            rows.append(("currency_api", "USD/EGP", data["usd"]["egp"], d, Json({"date": data["date"], "egp": data["usd"]["egp"]})))
+            rates = data["usd"]
+            for code in FX_CODES:
+                rows.append(("currency_api", f"USD/{code.upper()}", rates[code], d, Json({"date": data["date"], code: rates[code]})))
+            for code, symbol in METAL_CODES.items():
+                rows.append(("currency_api", symbol, 1 / rates[code], d, Json({"date": data["date"], code: rates[code]})))
         save_many(rows)
 
     backfill_crypto()
-    backfill_fx()
+    backfill_fx_and_metals()
 
 
 backfill_prices()
