@@ -49,3 +49,22 @@ models:
               field: source_key
       - name: price
         tests: [not_null]
+
+  - name: fct_daily_returns
+    columns:
+      - name: full_date
+        tests: [not_null]
+      - name: symbol
+        tests: [not_null]
+
+  - name: fct_gold_egp
+    columns:
+      - name: full_date
+        tests: [unique, not_null]
+      - name: gold_egp_per_gram
+        tests: [not_null]
+
+  - name: fct_monthly_summary
+    columns:
+      - name: symbol
+        tests: [not_null]
