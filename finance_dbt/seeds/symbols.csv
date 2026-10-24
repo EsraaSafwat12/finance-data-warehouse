@@ -1,0 +1,14 @@
+symbol,base_currency,quote_currency,asset_type,display_name
+USD/EGP,USD,EGP,fx,US Dollar / Egyptian Pound
+USD/EUR,USD,EUR,fx,US Dollar / Euro
+USD/GBP,USD,GBP,fx,US Dollar / British Pound
+USD/SAR,USD,SAR,fx,US Dollar / Saudi Riyal
+USD/AED,USD,AED,fx,US Dollar / UAE Dirham
+USD/TRY,USD,TRY,fx,US Dollar / Turkish Lira
+USD/JPY,USD,JPY,fx,US Dollar / Japanese Yen
+XAU/USD,XAU,USD,metal,Gold (USD per troy ounce)
+XAG/USD,XAG,USD,metal,Silver (USD per troy ounce)
+BTC/USD,BTC,USD,crypto,Bitcoin
+ETH/USD,ETH,USD,crypto,Ethereum
+SOL/USD,SOL,USD,crypto,Solana
+BNB/USD,BNB,USD,crypto,BNB

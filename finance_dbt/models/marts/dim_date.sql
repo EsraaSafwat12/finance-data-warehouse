@@ -8,4 +8,4 @@ select
     extract(day from d)::int as day,
     trim(to_char(d, 'Day')) as day_name,
     extract(isodow from d) in (6, 7) as is_weekend
-from generate_series('2026-07-01'::date, '2026-12-31'::date, interval '1 day') as d
+from generate_series('2026-07-01'::date, '2027-12-31'::date, interval '1 day') as d

@@ -13,11 +13,12 @@ models:
       - name: symbol_key
         tests: [unique, not_null]
       - name: symbol
+        tests: [unique, not_null]
+      - name: asset_type
         tests:
-          - unique
           - not_null
           - accepted_values:
-              values: ['USD/EGP', 'BTC/USD']
+              values: ['fx', 'metal', 'crypto']
 
   - name: dim_source
     columns:

@@ -72,6 +72,11 @@ def fetch_prices():
         data = r.json()
         save("coingecko", "BTC/USD", data["bitcoin"]["usd"], data)
 
+    dbt_seed = BashOperator(
+        task_id="dbt_seed",
+        bash_command=f"dbt seed {DBT_FLAGS}",
+    )
+
     dbt_run = BashOperator(
         task_id="dbt_run",
         bash_command=f"dbt run {DBT_FLAGS}",
@@ -84,7 +89,7 @@ def fetch_prices():
 
     fx = fetch_fx()
     crypto = fetch_crypto()
-    [fx, crypto] >> dbt_run >> dbt_test
+    [fx, crypto] >> dbt_seed >> dbt_run >> dbt_test
 
 
 fetch_prices()
