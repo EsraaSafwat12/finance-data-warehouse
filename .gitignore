@@ -5,3 +5,4 @@ __pycache__/
 airflow/logs/
 airflow/.env
 logs/
+airflow/dbt_profiles/

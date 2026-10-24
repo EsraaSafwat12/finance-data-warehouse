@@ -1,0 +1,12 @@
+finance_dbt:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: warehouse-db
+      port: 5432
+      user: warehouse
+      password: warehouse
+      dbname: finance_dwh
+      schema: staging
+      threads: 4

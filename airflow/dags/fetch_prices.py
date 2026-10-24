@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import psycopg2
 import requests
 from airflow.decorators import dag, task
+from airflow.operators.bash import BashOperator
 from psycopg2.extras import Json
 
 DB = dict(
@@ -11,6 +12,12 @@ DB = dict(
     dbname="finance_dwh",
     user="warehouse",
     password="warehouse",
+)
+
+DBT_FLAGS = (
+    "--project-dir /opt/airflow/finance_dbt "
+    "--target-path /tmp/dbt_target "
+    "--log-path /tmp/dbt_logs"
 )
 
 
@@ -65,8 +72,19 @@ def fetch_prices():
         data = r.json()
         save("coingecko", "BTC/USD", data["bitcoin"]["usd"], data)
 
-    fetch_fx()
-    fetch_crypto()
+    dbt_run = BashOperator(
+        task_id="dbt_run",
+        bash_command=f"dbt run {DBT_FLAGS}",
+    )
+
+    dbt_test = BashOperator(
+        task_id="dbt_test",
+        bash_command=f"dbt test {DBT_FLAGS}",
+    )
+
+    fx = fetch_fx()
+    crypto = fetch_crypto()
+    [fx, crypto] >> dbt_run >> dbt_test
 
 
 fetch_prices()
